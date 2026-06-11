@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Category Flow — Spring Boot Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0c0e14;--surface:#141720;--surface2:#1a1e2a;--border:#252a3a;
+  --text:#e2e4ea;--muted:#6b7084;--accent:#3b82f6;--accent2:#60a5fa;
+  --green:#22c55e;--green-dim:#16a34a;--orange:#f59e0b;--red:#ef4444;
+  --purple:#a78bfa;--cyan:#22d3ee;
+  --mono:'JetBrains Mono',monospace;--sans:'DM Sans',sans-serif;
+}
+html{font-size:15px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden}
+
+.grid-bg{position:fixed;inset:0;background-image:
+  linear-gradient(rgba(59,130,246,.03) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(59,130,246,.03) 1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none;z-index:0}
+
+header{text-align:center;padding:2.5rem 1rem 1.5rem;position:relative;z-index:1}
+header h1{font-family:var(--mono);font-size:1.6rem;font-weight:700;letter-spacing:-.02em;
+  background:linear-gradient(135deg,var(--accent2),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+header p{color:var(--muted);font-size:.85rem;margin-top:.4rem}
+
+.app{max-width:1100px;margin:0 auto;padding:0 1.5rem 3rem;position:relative;z-index:1;display:grid;gap:1.5rem;
+  grid-template-columns:280px 1fr}
+
+/* LEFT PANEL */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem}
+.panel h2{font-family:var(--mono);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:1rem}
+
+.method-btns{display:flex;gap:.4rem;margin-bottom:1rem}
+.method-btn{font-family:var(--mono);font-size:.7rem;font-weight:700;padding:.4rem .7rem;border-radius:6px;border:1px solid var(--border);
+  background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .2s}
+.method-btn:hover{border-color:var(--accent);color:var(--accent)}
+.method-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.method-btn.active.get{background:#22c55e;border-color:#22c55e}
+.method-btn.active.post{background:#f59e0b;border-color:#f59e0b}
+.method-btn.active.put{background:#3b82f6;border-color:#3b82f6}
+
+.field{margin-bottom:.8rem}
+.field label{display:block;font-size:.7rem;font-weight:600;color:var(--muted);margin-bottom:.3rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em}
+.field input,.field textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.5rem .65rem;
+  color:var(--text);font-family:var(--mono);font-size:.8rem;outline:none;transition:border-color .2s}
+.field input:focus,.field textarea:focus{border-color:var(--accent)}
+.field textarea{resize:vertical;min-height:50px}
+
+.send-btn{width:100%;padding:.65rem;border:none;border-radius:8px;font-family:var(--mono);font-size:.8rem;font-weight:700;
+  cursor:pointer;transition:all .25s;margin-top:.4rem;position:relative;overflow:hidden}
+.send-btn.get{background:var(--green);color:#fff}
+.send-btn.post{background:var(--orange);color:#000}
+.send-btn.put{background:var(--accent);color:#fff}
+.send-btn:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(59,130,246,.3)}
+.send-btn:active{transform:translateY(0)}
+.send-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+/* RIGHT — FLOW AREA */
+.flow-area{display:flex;flex-direction:column;gap:0}
+
+.layer{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem 1.25rem;
+  position:relative;transition:all .4s ease;opacity:.4;transform:translateY(4px)}
+.layer.active{opacity:1;transform:translateY(0)}
+.layer.done{opacity:.7}
+
+.layer-header{display:flex;align-items:center;gap:.6rem;margin-bottom:.6rem}
+.layer-icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;
+  font-family:var(--mono);flex-shrink:0}
+.layer-icon.user{background:rgba(96,165,250,.15);color:var(--accent2)}
+.layer-icon.ctrl{background:rgba(34,197,94,.15);color:var(--green)}
+.layer-icon.svc{background:rgba(167,139,250,.15);color:var(--purple)}
+.layer-icon.repo{background:rgba(245,158,11,.15);color:var(--orange)}
+.layer-icon.db{background:rgba(34,211,238,.15);color:var(--cyan)}
+
+.layer-title{font-family:var(--mono);font-size:.75rem;font-weight:700;letter-spacing:.02em}
+.layer-subtitle{font-size:.65rem;color:var(--muted);font-family:var(--mono)}
+
+.layer-code{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.6rem .8rem;
+  font-family:var(--mono);font-size:.7rem;line-height:1.6;color:var(--muted);white-space:pre-wrap;overflow-x:auto}
+.layer-code .kw{color:var(--purple)}
+.layer-code .str{color:var(--green)}
+.layer-code .fn{color:var(--accent2)}
+.layer-code .cm{color:#4a5068;font-style:italic}
+.layer-code .ann{color:var(--orange)}
+.layer-code .data{color:var(--cyan)}
+
+.arrow-connector{display:flex;justify-content:center;padding:.15rem 0;opacity:.3;transition:opacity .4s}
+.arrow-connector.active{opacity:1}
+.arrow-connector svg{width:20px;height:20px}
+
+.data-bubble{display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+  padding:.15rem .45rem;font-family:var(--mono);font-size:.65rem;color:var(--cyan);margin-top:.4rem}
+
+/* RESPONSE PANEL */
+.response-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem 1.25rem;margin-top:.5rem;
+  grid-column:1/-1;opacity:0;transition:all .4s;transform:translateY(8px)}
+.response-box.visible{opacity:1;transform:translateY(0)}
+.response-box h3{font-family:var(--mono);font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem}
+.response-json{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.8rem 1rem;
+  font-family:var(--mono);font-size:.72rem;line-height:1.6;color:var(--green);white-space:pre-wrap;max-height:200px;overflow-y:auto}
+
+.status-badge{display:inline-block;padding:.15rem .5rem;border-radius:4px;font-family:var(--mono);font-size:.65rem;font-weight:700;margin-left:.5rem}
+.status-badge.s200{background:rgba(34,197,94,.15);color:var(--green)}
+.status-badge.s201{background:rgba(34,211,238,.15);color:var(--cyan)}
+.status-badge.s404{background:rgba(239,68,68,.15);color:var(--red)}
+
+/* Pulse animation */
+@keyframes pulse-border{0%,100%{border-color:var(--border)}50%{border-color:var(--accent)}}
+.layer.active{animation:pulse-border 1.2s ease}
+
+@media(max-width:768px){.app{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+
+<header>
+  <h1>// Category Flow Explorer</h1>
+  <p>Klick dich Schritt fuer Schritt durch die Spring Boot Architektur</p>
+</header>
+
+<div class="app">
+  <!-- LEFT: Input Panel -->
+  <div class="panel">
+    <h2>Request Builder</h2>
+
+    <div class="method-btns">
+      <button class="method-btn get active" onclick="setMethod('GET')">GET</button>
+      <button class="method-btn post" onclick="setMethod('POST')">POST</button>
+      <button class="method-btn put" onclick="setMethod('PUT')">PUT</button>
+    </div>
+
+    <div class="field" id="field-id">
+      <label>Category ID</label>
+      <input type="number" id="input-id" placeholder="z.B. 3" value="">
+    </div>
+
+    <div class="field" id="field-name" style="display:none">
+      <label>Category Name</label>
+      <input type="text" id="input-name" placeholder="z.B. Beverages" value="">
+    </div>
+
+    <div class="field" id="field-desc" style="display:none">
+      <label>Description</label>
+      <textarea id="input-desc" placeholder="z.B. Soft drinks, coffees..."></textarea>
+    </div>
+
+    <button class="send-btn get" id="send-btn" onclick="sendRequest()">
+      Send GET Request &rarr;
+    </button>
+  </div>
+
+  <!-- RIGHT: Flow Layers -->
+  <div class="flow-area">
+    <!-- User -->
+    <div class="layer" id="layer-user">
+      <div class="layer-header">
+        <div class="layer-icon user">U</div>
+        <div><div class="layer-title">User / Browser</div>
+        <div class="layer-subtitle">HTTP Client</div></div>
+      </div>
+      <div class="layer-code" id="code-user"></div>
+    </div>
+
+    <div class="arrow-connector" id="arrow-1"><svg viewBox="0 0 20 20"><path d="M10 4 L10 14 M6 10 L10 15 L14 10" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" color="#3b82f6"/></svg></div>
+
+    <!-- Controller -->
+    <div class="layer" id="layer-ctrl">
+      <div class="layer-header">
+        <div class="layer-icon ctrl">C</div>
+        <div><div class="layer-title">CategoryController</div>
+        <div class="layer-subtitle">@RestController — /category</div></div>
+      </div>
+      <div class="layer-code" id="code-ctrl"></div>
+    </div>
+
+    <div class="arrow-connector" id="arrow-2"><svg viewBox="0 0 20 20"><path d="M10 4 L10 14 M6 10 L10 15 L14 10" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" color="#a78bfa"/></svg></div>
+
+    <!-- Service -->
+    <div class="layer" id="layer-svc">
+      <div class="layer-header">
+        <div class="layer-icon svc">S</div>
+        <div><div class="layer-title">CategoryService</div>
+        <div class="layer-subtitle">@Service — Business Logic</div></div>
+      </div>
+      <div class="layer-code" id="code-svc"></div>
+    </div>
+
+    <div class="arrow-connector" id="arrow-3"><svg viewBox="0 0 20 20"><path d="M10 4 L10 14 M6 10 L10 15 L14 10" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" color="#f59e0b"/></svg></div>
+
+    <!-- Repository -->
+    <div class="layer" id="layer-repo">
+      <div class="layer-header">
+        <div class="layer-icon repo">R</div>
+        <div><div class="layer-title">CategoryRepository</div>
+        <div class="layer-subtitle">JpaRepository&lt;Category, Short&gt;</div></div>
+      </div>
+      <div class="layer-code" id="code-repo"></div>
+    </div>
+
+    <div class="arrow-connector" id="arrow-4"><svg viewBox="0 0 20 20"><path d="M10 4 L10 14 M6 10 L10 15 L14 10" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" color="#22d3ee"/></svg></div>
+
+    <!-- Database -->
+    <div class="layer" id="layer-db">
+      <div class="layer-header">
+        <div class="layer-icon db">DB</div>
+        <div><div class="layer-title">PostgreSQL</div>
+        <div class="layer-subtitle">categories table</div></div>
+      </div>
+      <div class="layer-code" id="code-db"></div>
+    </div>
+  </div>
+
+  <!-- Response -->
+  <div class="response-box" id="response-box">
+    <h3>Response <span class="status-badge" id="status-badge"></span></h3>
+    <div class="response-json" id="response-json"></div>
+  </div>
+</div>
+
+<script>
+const FAKE_DB = {
+  1: { id: 1, categoryName: "Beverages", description: "Soft drinks, coffees, teas, beers, and ales" },
+  2: { id: 2, categoryName: "Condiments", description: "Sweet and savory sauces, relishes, spreads" },
+  3: { id: 3, categoryName: "Confections", description: "Desserts, candies, and sweet breads" },
+  4: { id: 4, categoryName: "Dairy Products", description: "Cheeses and milk-based products" },
+  5: { id: 5, categoryName: "Grains/Cereals", description: "Breads, crackers, pasta, and cereal" },
+  6: { id: 6, categoryName: "Meat/Poultry", description: "Prepared meats and poultry products" },
+  7: { id: 7, categoryName: "Produce", description: "Dried fruit and bean curd" },
+  8: { id: 8, categoryName: "Seafood", description: "Seaweed and fish products" }
+};
+let nextId = 9;
+let method = 'GET';
+let running = false;
+
+function setMethod(m) {
+  method = m;
+  document.querySelectorAll('.method-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.method-btn.${m.toLowerCase()}`).classList.add('active');
+
+  const btn = document.getElementById('send-btn');
+  btn.className = `send-btn ${m.toLowerCase()}`;
+  btn.textContent = `Send ${m} Request →`;
+
+  const showBody = m === 'POST' || m === 'PUT';
+  document.getElementById('field-name').style.display = showBody ? '' : 'none';
+  document.getElementById('field-desc').style.display = showBody ? '' : 'none';
+  document.getElementById('field-id').style.display = m === 'POST' ? 'none' : '';
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function highlight(code) {
+  return code
+    .replace(/\/\/.*/g, m => `<span class="cm">${m}</span>`)
+    .replace(/@\w+/g, m => `<span class="ann">${m}</span>`)
+    .replace(/\b(public|private|return|new|if|throw|void|class|extends|interface)\b/g, '<span class="kw">$1</span>')
+    .replace(/"[^"]*"/g, m => `<span class="str">${m}</span>`)
+    .replace(/\b(findAll|findById|save|orElseThrow|getAllCategories|getCategoryById|updateCategory|createCategory)\b/g, '<span class="fn">$1</span>')
+    .replace(/\{[^}]*\}/g, m => `<span class="data">${m}</span>`);
+}
+
+function setLayer(id, code, active) {
+  const el = document.getElementById(id);
+  el.classList.toggle('active', active);
+  el.classList.remove('done');
+  if (code !== null) {
+    document.getElementById(id.replace('layer-','code-')).innerHTML = highlight(code);
+  }
+}
+
+function setArrow(id, active) {
+  document.getElementById(id).classList.toggle('active', active);
+}
+
+function resetAll() {
+  ['layer-user','layer-ctrl','layer-svc','layer-repo','layer-db'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove('active','done');
+    el.querySelector('.layer-code') && (el.querySelector('.layer-code').innerHTML = '');
+  });
+  ['arrow-1','arrow-2','arrow-3','arrow-4'].forEach(id => setArrow(id, false));
+  document.getElementById('response-box').classList.remove('visible');
+}
+
+function markDone(id) {
+  document.getElementById(id).classList.remove('active');
+  document.getElementById(id).classList.add('done');
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function sendRequest() {
+  if (running) return;
+  running = true;
+  document.getElementById('send-btn').disabled = true;
+  resetAll();
+
+  const id = document.getElementById('input-id').value;
+  const name = document.getElementById('input-name').value || 'New Category';
+  const desc = document.getElementById('input-desc').value || 'A new category';
+
+  let endpoint, bodyStr;
+  if (method === 'GET' && !id) endpoint = 'GET /category';
+  else if (method === 'GET') endpoint = `GET /category/${id}`;
+  else if (method === 'POST') endpoint = 'POST /category';
+  else endpoint = `PUT /category/${id || 1}`;
+
+  if (method === 'POST' || method === 'PUT') {
+    bodyStr = JSON.stringify({ categoryName: name, description: desc }, null, 2);
+  }
+
+  // Step 1: User
+  const userCode = method === 'GET'
+    ? `${endpoint}\nHost: localhost:8080\nAccept: application/json`
+    : `${endpoint}\nHost: localhost:8080\nContent-Type: application/json\n\n${bodyStr}`;
+  setLayer('layer-user', userCode, true);
+  await delay(900);
+  markDone('layer-user');
+  setArrow('arrow-1', true);
+
+  // Step 2: Controller
+  await delay(300);
+  let ctrlCode;
+  if (method === 'GET' && !id) {
+    ctrlCode = `@GetMapping\npublic ResponseEntity<List<Category>> getAllCategories() {\n    List<Category> cats = categoryService.getAllCategories();\n    return ResponseEntity.ok(cats);\n}`;
+  } else if (method === 'GET') {
+    ctrlCode = `@GetMapping("/${id}")\npublic ResponseEntity<Category> getCategoryById(@PathVariable Short id) {\n    Category cat = categoryService.getCategoryById(id);\n    return ResponseEntity.ok(cat);\n}`;
+  } else if (method === 'POST') {
+    ctrlCode = `@PostMapping\npublic ResponseEntity<Category> createCategory(@RequestBody Category cat) {\n    Category saved = categoryRepository.save(cat);\n    return ResponseEntity.status(201).body(saved);\n}\n// Hinweis: POST geht direkt zum Repository!`;
+  } else {
+    ctrlCode = `@PutMapping("/${id || 1}")\npublic ResponseEntity<Category> updateCategory(\n    @PathVariable Short id, @RequestBody Category cat) {\n    Category updated = categoryService.updateCategory(id, cat);\n    return ResponseEntity.ok(updated);\n}`;
+  }
+  setLayer('layer-ctrl', ctrlCode, true);
+  await delay(1000);
+  markDone('layer-ctrl');
+  setArrow('arrow-2', true);
+
+  // Step 3: Service (POST skips this)
+  await delay(300);
+  if (method === 'POST') {
+    setLayer('layer-svc', '// Wird uebersprungen!\n// POST geht direkt vom Controller zum Repository.', true);
+    await delay(600);
+    markDone('layer-svc');
+  } else if (method === 'GET' && !id) {
+    setLayer('layer-svc', `public List<Category> getAllCategories() {\n    return categoryRepository.findAll();\n}`, true);
+    await delay(900);
+    markDone('layer-svc');
+  } else if (method === 'GET') {
+    const found = FAKE_DB[id];
+    const svcCode = found
+      ? `public Category getCategoryById(Short id) {\n    return categoryRepository.findById(id)\n        .orElseThrow(() -> new ResourceNotFoundException(...));\n}\n// ID ${id} gefunden!`
+      : `public Category getCategoryById(Short id) {\n    return categoryRepository.findById(id)\n        .orElseThrow(() -> new ResourceNotFoundException(...));\n}\n// ID ${id} NICHT gefunden -> Exception!`;
+    setLayer('layer-svc', svcCode, true);
+    await delay(900);
+    markDone('layer-svc');
+  } else {
+    setLayer('layer-svc', `public Category updateCategory(Short id, Category cat) {\n    Category existing = categoryRepository.findById(id)\n        .orElseThrow(() -> new ResourceNotFoundException(...));\n    existing.setCategoryName(cat.getCategoryName());\n    existing.setDescription(cat.getDescription());\n    return categoryRepository.save(existing);\n}`, true);
+    await delay(900);
+    markDone('layer-svc');
+  }
+
+  setArrow('arrow-3', true);
+
+  // Step 4: Repository
+  await delay(300);
+  let repoCode;
+  if (method === 'GET' && !id) repoCode = `// JpaRepository stellt findAll() bereit\nList<Category> findAll();\n\n// Spring Data generiert das SQL automatisch`;
+  else if (method === 'GET') repoCode = `// JpaRepository stellt findById() bereit\nOptional<Category> findById(Short id);\n\n// Kein SQL noetig — Spring erledigt das`;
+  else repoCode = `// JpaRepository stellt save() bereit\nCategory save(Category entity);\n\n// INSERT oder UPDATE je nach Entity-State`;
+  setLayer('layer-repo', repoCode, true);
+  await delay(800);
+  markDone('layer-repo');
+  setArrow('arrow-4', true);
+
+  // Step 5: Database
+  await delay(300);
+  let dbCode;
+  if (method === 'GET' && !id) dbCode = `SELECT category_id, category_name, description, picture\nFROM categories;`;
+  else if (method === 'GET') dbCode = `SELECT category_id, category_name, description, picture\nFROM categories\nWHERE category_id = ${esc(id)};`;
+  else if (method === 'POST') dbCode = `INSERT INTO categories (category_name, description)\nVALUES ('${esc(name)}', '${esc(desc)}');`;
+  else dbCode = `UPDATE categories\nSET category_name = '${esc(name)}',\n    description = '${esc(desc)}'\nWHERE category_id = ${esc(id || '1')};`;
+  setLayer('layer-db', dbCode, true);
+  await delay(800);
+  markDone('layer-db');
+
+  // Build response
+  await delay(400);
+  let responseData, status, statusClass;
+  if (method === 'GET' && !id) {
+    responseData = JSON.stringify(Object.values(FAKE_DB), null, 2);
+    status = '200 OK'; statusClass = 's200';
+  } else if (method === 'GET') {
+    if (FAKE_DB[id]) {
+      responseData = JSON.stringify(FAKE_DB[id], null, 2);
+      status = '200 OK'; statusClass = 's200';
+    } else {
+      responseData = JSON.stringify({ error: "Category not found", message: `Keine Category mit ID ${id} gefunden` }, null, 2);
+      status = '404 Not Found'; statusClass = 's404';
+    }
+  } else if (method === 'POST') {
+    const newCat = { id: nextId++, categoryName: name, description: desc };
+    FAKE_DB[newCat.id] = newCat;
+    responseData = JSON.stringify(newCat, null, 2);
+    status = '201 Created'; statusClass = 's201';
+  } else {
+    const uid = id || 1;
+    if (FAKE_DB[uid]) {
+      FAKE_DB[uid].categoryName = name;
+      FAKE_DB[uid].description = desc;
+      responseData = JSON.stringify(FAKE_DB[uid], null, 2);
+      status = '200 OK'; statusClass = 's200';
+    } else {
+      responseData = JSON.stringify({ error: "Category not found", message: `Keine Category mit ID ${uid} gefunden` }, null, 2);
+      status = '404 Not Found'; statusClass = 's404';
+    }
+  }
+
+  const badge = document.getElementById('status-badge');
+  badge.textContent = status;
+  badge.className = `status-badge ${statusClass}`;
+  document.getElementById('response-json').textContent = responseData;
+  document.getElementById('response-box').classList.add('visible');
+
+  running = false;
+  document.getElementById('send-btn').disabled = false;
+}
+</script>
+</body>
+</html>
